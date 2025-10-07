@@ -120,13 +120,51 @@ depth_20251006_143022.png
 ```
 
 ### Depth Map (PNG)
-- Grayscale image where brightness = distance
-- **Black** = closest objects
-- **White** = farthest objects
-- Uses custom shader for high-quality visualization
+- Grayscale 8-bit image where brightness = distance
+- **White (255)** = nearest objects (0.01m default)
+- **Black (0)** = farthest objects (80m default)
 - Resolution matches your capture settings
 
----
+**Visual Mapping:**
+```
+Scene Depth        Pixel Value    Setting
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0.01m (closest) →  255 (white) ← Near Distance
+40m   (middle)  →  128 (gray)
+80m   (farthest)→  0   (black) ← Far Distance
+```
+These settings are in: `Depth Volume Profile.asset` → "Depth Texture" component
+
+**Quick Reference - Depth Conversion:**
+```
+real_depth_meters = (pixel_value / 255.0) * 79.99 + 0.01
+```
+
+**Full Depth Conversion Formula:**
+```
+real_depth_meters = (pixel_value / 255.0) * (farDistance - nearDistance) + nearDistance
+```
+
+**Default Parameters:**
+These are set in `Depth Volume Profile.asset` under the **"Depth Texture"** volume component:
+- `Near Distance` = 0.01m (objects closer appear white/255)
+- `Far Distance` = 80m (objects farther appear black/0)
+
+**How to Change:**
+1. In Unity, select `Assets/_Roam Systems/Spatial Reconstruction/Depth Effect/Depth Volume Profile.asset`
+2. In the Inspector, find the **"Depth Texture"** section
+3. Adjust `Near Distance` and `Far Distance` sliders
+4. These values directly control the depth mapping
+
+**Example Conversion** (with defaults):
+```
+pixel_value = 255 → real_depth ≈ 0.01m (near/white)
+pixel_value = 128 → real_depth ≈ 40m (middle gray)
+pixel_value = 0   → real_depth ≈ 80m (far/black)
+```
+
+**Note:** The `Depth Curve` parameter in the same volume component can modify this linear mapping. Default curve is linear (0→0, 1→1)
+
 
 ## Common Use Cases
 
@@ -176,10 +214,17 @@ Click the **Configuration** section in Frame Analyzer to customize:
 - `Include Inactive Objects`: Capture hidden/disabled objects
 - `Frustum Culling`: Only capture visible objects (faster)
 
-**Depth Visualization**
-- `Near Cutoff`: Closest depth visible (meters)
-- `Far Cutoff`: Farthest depth visible (meters)
-- `Contrast`: Depth gradient sharpness
+**Depth Visualization** (Advanced)
+To customize depth range:
+1. Select `Assets/_Roam Systems/Spatial Reconstruction/Depth Effect/Depth Volume Profile.asset`
+2. In Inspector, expand the **"Depth Texture"** volume component
+3. Modify these parameters:
+   - `Near Distance`: Closest depth in meters (default: 0.01m) - objects closer appear white
+   - `Far Distance`: Farthest depth in meters (default: 80m) - objects farther appear black
+   - `Depth Curve`: Custom falloff curve (default: linear 0→1)
+   - `Shadow Influence`: How much shadows affect depth visualization (default: 0.215)
+
+**Location:** These are post-processing volume settings, NOT camera settings. The `Depth Texture` component inside the volume profile controls all depth mapping parameters.
 
 ---
 
@@ -190,14 +235,18 @@ Click the **Configuration** section in Frame Analyzer to customize:
 - Rotation: Quaternion (x, y, z, w)
 - Matrices: Row-major order
 
-**Depth Rendering**: URP-based shader replacement
-- Uses custom post-processing volume
-- GPU-accelerated for speed
-- Non-destructive (doesn't affect main camera)
+**Depth Rendering**: URP-based shader with post-processing
+- Shader: `Roam/DepthTexture` (HLSL)
+- Captures scene depth from GPU depth buffer
+- Converts to linear eye space depth using `LinearEyeDepth()`
+- Remaps to custom near/far range: `(eyeDepth - nearDistance) / (farDistance - nearDistance)`
+- Applies custom curve LUT for non-linear falloff
+- Blends with shadow information for better visualization
+- GPU-accelerated, non-destructive (doesn't affect main camera)
 
 **File Format**: JSON + PNG
 - JSON: UTF-8 encoded, human-readable
-- PNG: 8-bit grayscale (can configure to 16-bit)
+- PNG: 8-bit grayscale, depth encoded as linear mapping from near to far distance
 
 ---
 
@@ -233,6 +282,14 @@ To use in another Unity project:
 **🔍 "Objects missing from JSON"**
 - **Problem**: Layer filtering or frustum culling is too restrictive
 - **Solution**: Check Layer Mask and "Only Visible Objects" settings in Configuration
+
+**📏 "Depth values seem wrong"**
+- **Problem**: Near/Far distance settings don't match your scene scale
+- **Solution**: 
+  1. Open `Depth Volume Profile.asset`
+  2. Adjust `Near Distance` and `Far Distance` in the "Depth Texture" component
+  3. Rule of thumb: Set Far Distance to match the farthest visible object in your scene
+  4. Recapture after changing these values
 
 **⚠️ "Script compilation errors"**
 - **Problem**: Missing URP package or wrong Unity version
