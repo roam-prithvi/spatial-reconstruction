@@ -16,7 +16,6 @@ MonoBehaviour:
   resolutionMultiplier: 1
   captureLayerMask:
     serializedVersion: 2
-    m_Bits: 65019903
+    m_Bits: 4294967295
   includeInactiveObjects: 0
   onlyVisibleObjects: 1
-  depthShader: {fileID: 0}
